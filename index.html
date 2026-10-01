@@ -137,7 +137,7 @@ function fbStore(){
   const db = firebase.firestore(), C = db.collection("cal_share");
   return {
     auth: firebase.auth(),
-    watchWorks(cb, err){ return C.onSnapshot(s => cb(s.docs.map(d => ({...d.data(), token:d.id}))), err); },
+    watchWorks(cb, err, owner){ return C.where("owner", "==", owner).onSnapshot(s => cb(s.docs.map(d => ({...d.data(), token:d.id}))), err); },
     saveWork(w){ const {token, ...data} = w; return C.doc(token).set(data); },
     async deleteWork(t){ const s = await C.doc(t).collection("comments").get(); await Promise.all(s.docs.map(d=>d.ref.delete())); return C.doc(t).delete(); },
     watchShare(t, cb, err){ return C.doc(t).onSnapshot(d => cb(d.exists ? {...d.data(), token:d.id} : null), err); },
@@ -401,7 +401,7 @@ async function addWork(){
   const used = new Set(S.works.map(w => w.color));
   let color = 0; while (used.has(color) && color < HUES.length) color++;
   if (color >= HUES.length) color = S.works.length % HUES.length;
-  await store.saveWork({token: rid(), name, color, serial: null, events: [], createdAt: Date.now()});
+  await store.saveWork({token: rid(), name, color, serial: null, events: [], createdAt: Date.now(), owner: S.user.email});
   toast("작품을 추가했습니다");
 }
 function workEditModal(t){
@@ -592,7 +592,7 @@ document.addEventListener("keydown", ev => {
 function startPD(){
   let unsubW = null;
   const begin = () => {
-    unsubW = store.watchWorks(list => { S.works = list; syncCommentListeners(); renderPD(); }, e => toast("불러오지 못했습니다: " + e.message));
+    unsubW = store.watchWorks(list => { S.works = list; syncCommentListeners(); renderPD(); }, e => toast("불러오지 못했습니다: " + e.message), S.user.email);
   };
   if (DEMO){ S.user = {email:"demo"}; begin(); return; }
   renderPD();
