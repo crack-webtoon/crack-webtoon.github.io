@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>작품 일정표</title>
+<style>
+:root{--bg:#f7f7f5;--card:#fff;--line:#e4e3de;--line2:#cfcdc6;--tx:#1f1f1d;--tx2:#6b6a65;--tx3:#9b9a94;--acc:#2f6fd6;--accbg:#e8f0fc;--red:#c43c3c}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif;font-size:14px}
+button{font:inherit;background:var(--card);border:1px solid var(--line2);border-radius:8px;padding:6px 12px;cursor:pointer;color:var(--tx)}
+button:hover{background:#f1f0ec}
+button.pri{background:var(--acc);border-color:var(--acc);color:#fff}
+button.pri:hover{background:#2560bd}
+button.del{color:var(--red)}
+button.ic{padding:4px 8px}
+input,select,textarea{font:inherit;border:1px solid var(--line2);border-radius:8px;padding:7px 10px;background:#fff;color:var(--tx);width:100%}
+textarea{resize:vertical;min-height:60px}
+label{display:block;font-size:12px;color:var(--tx2);margin:12px 0 4px}
+.wrap{max-width:1180px;margin:0 auto;padding:16px}
+.top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.top h1{font-size:18px;font-weight:600;margin:0 8px 0 0}
+.mon{font-size:17px;font-weight:600;min-width:110px;text-align:center}
+.sp{flex:1}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.chip{font-size:12px;padding:4px 10px;border-radius:999px;border:1px solid transparent;cursor:pointer;user-select:none}
+.chip.off{background:#fff!important;color:var(--tx3)!important;border-color:var(--line);text-decoration:line-through}
+.chip.all{background:#fff;border-color:var(--line2);color:var(--tx2)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-top:1px solid var(--line);border-left:1px solid var(--line)}
+.cal>div{border-right:1px solid var(--line);border-bottom:1px solid var(--line);min-height:104px;padding:4px;min-width:0}
+.cal .hd{min-height:auto;text-align:center;font-size:12px;color:var(--tx2);background:#fafaf8;padding:6px 0}
+.cal .hd.sun,.dn.sun{color:var(--red)}.cal .hd.sat,.dn.sat{color:var(--acc)}
+.cell{cursor:pointer}.cell:hover{background:#fbfbf9}
+.cell.out{background:#fafaf8}.cell.out .dn{opacity:.4}
+.dn{font-size:12px;color:var(--tx2);margin-bottom:2px;display:inline-block;min-width:22px;height:22px;line-height:22px;text-align:center;border-radius:50%}
+.today .dn{background:var(--acc);color:#fff!important}
+.ev{display:block;font-size:11.5px;line-height:1.35;border-radius:4px;padding:2px 5px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.ev.serial{color:#fff}
+.ev.hiatus{background:#f0efeb!important;color:var(--tx2)!important;border-left:3px solid}
+.more{font-size:11.5px;color:var(--tx2);padding:2px 5px;cursor:pointer}
+.more:hover{text-decoration:underline}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:flex-start;justify-content:center;padding:6vh 16px;z-index:50;overflow:auto}
+.md{background:#fff;border-radius:14px;padding:20px;width:100%;max-width:460px}
+.md.wide{max-width:640px}
+.md h2{font-size:16px;margin:0 0 4px;font-weight:600}
+.row{display:flex;gap:8px;align-items:center}
+.row>*{flex:1}
+.acts{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+.acts .sp{flex:1}
+.wdays{display:flex;gap:4px}
+.wdays label{margin:0;flex:1;text-align:center;border:1px solid var(--line2);border-radius:8px;padding:6px 0;cursor:pointer;font-size:13px;color:var(--tx)}
+.wdays input{display:none}
+.wdays label.on{background:var(--acc);border-color:var(--acc);color:#fff}
+.sw{display:flex;flex-wrap:wrap;gap:6px}
+.sw span{width:24px;height:24px;border-radius:50%;cursor:pointer;border:2px solid transparent}
+.sw span.on{border-color:var(--tx)}
+.wl{border-top:1px solid var(--line);margin-top:10px}
+.wl>div{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--line)}
+.dot{width:10px;height:10px;border-radius:50%;flex:none}
+.muted{color:var(--tx2);font-size:12px}
+.hint{color:var(--tx3);font-size:12px;margin-top:6px}
+.badge{background:var(--red);color:#fff;border-radius:999px;font-size:11px;padding:0 6px;margin-left:4px}
+.cm{padding:10px 0;border-bottom:1px solid var(--line)}
+.cm .meta{font-size:12px;color:var(--tx2);margin-bottom:3px;display:flex;gap:6px;align-items:center}
+.cm .tx{white-space:pre-wrap;word-break:break-all}
+.cm.new{background:#fffbea}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:9px 16px;border-radius:8px;font-size:13px;z-index:99}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:12px;margin-top:12px}
+.up>div{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+.up .d{color:var(--tx2);min-width:76px}
+.login{max-width:360px;margin:16vh auto;text-align:center}
+.demo{background:#fff4d6;border:1px solid #f0d58a;color:#6b4e00;border-radius:8px;padding:8px 12px;font-size:12px;margin-bottom:12px}
+@media(max-width:760px){
+ .cal>div{min-height:76px;padding:2px}
+ .ev,.more{font-size:11px;padding:1px 3px}
+ .grid2{grid-template-columns:1fr}
+ .top h1{width:100%}
+}
+</style>
+</head>
+<body>
+<div id="main"></div>
+<div id="modal"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+/* ===== 설정: 기존 PD 매니저와 같은 Firebase 설정값을 붙여넣으세요 ===== */
+const firebaseConfig = {
+  apiKey: "AIzaSyCqUwH_Kc0kwYU3Fl95LyFx1eyXbjkIGLY",
+  authDomain: "webtoon-pd-3edda.firebaseapp.com",
+  projectId: "webtoon-pd-3edda",
+  storageBucket: "webtoon-pd-3edda.firebasestorage.app",
+  messagingSenderId: "173903637531",
+  appId: "1:173903637531:web:5687f6fbaa800537e7dcbe"
+};
+/* PD 구글 계정 이메일 (보안 규칙의 이메일과 같아야 합니다) */
+const PD_EMAILS = ["_yjs_@crackent.com"];
+/* ===================================================================== */
+
+const DEMO = !firebaseConfig.apiKey || firebaseConfig.apiKey.startsWith("여기에");
+const TYPES = {
+  conti:  {label:"콘티 마감"},
+  manu:   {label:"원고 마감"},
+  hiatus: {label:"휴재"},
+  launch: {label:"런칭"},
+  etc:    {label:"기타"}
+};
+const TYPE_ORDER = {serial:0, launch:1, manu:2, conti:3, hiatus:4, etc:5};
+const HUES = [250,160,15,330,200,45,280,120,0,185,300,75,225,140,30,350,265,100,210,55];
+const col = i => { const h = HUES[(i||0) % HUES.length]; return {bg:`hsl(${h} 70% 92%)`, fg:`hsl(${h} 55% 26%)`, solid:`hsl(${h} 48% 44%)`}; };
+const WD = ["일","월","화","수","목","금","토"];
+const pad = n => String(n).padStart(2,"0");
+const ds = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const pdate = s => { const [a,b,c] = s.split("-").map(Number); return new Date(a,b-1,c); };
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const rid = (n=24) => { const a="ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"; const r=crypto.getRandomValues(new Uint8Array(n)); return [...r].map(x=>a[x%a.length]).join(""); };
+const ls = { get(k,d){ try{ const v=localStorage.getItem(k); return v==null?d:JSON.parse(v); }catch(e){ return d; } }, set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} } };
+const clone = o => JSON.parse(JSON.stringify(o));
+const toDate = at => at && at.toDate ? at.toDate() : (at ? new Date(at) : null);
+const fmtTime = at => { const d = toDate(at); return d ? `${d.getMonth()+1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}` : "방금"; };
+function toast(t){ const el=document.createElement("div"); el.className="toast"; el.textContent=t; document.body.appendChild(el); setTimeout(()=>el.remove(),1800); }
+const shareLink = t => location.origin + location.pathname + "?w=" + t;
+
+/* ===== 저장소 ===== */
+function fbStore(){
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore(), C = db.collection("cal_share");
+  return {
+    auth: firebase.auth(),
+    watchWorks(cb, err){ return C.onSnapshot(s => cb(s.docs.map(d => ({...d.data(), token:d.id}))), err); },
+    saveWork(w){ const {token, ...data} = w; return C.doc(token).set(data); },
+    async deleteWork(t){ const s = await C.doc(t).collection("comments").get(); await Promise.all(s.docs.map(d=>d.ref.delete())); return C.doc(t).delete(); },
+    watchShare(t, cb, err){ return C.doc(t).onSnapshot(d => cb(d.exists ? {...d.data(), token:d.id} : null), err); },
+    watchComments(t, cb){ return C.doc(t).collection("comments").orderBy("at","desc").limit(50).onSnapshot(s => cb(s.docs.map(d => ({id:d.id, ...d.data()}))), () => cb([])); },
+    addComment(t, c){ return C.doc(t).collection("comments").add({...c, at: firebase.firestore.FieldValue.serverTimestamp()}); },
+    deleteComment(t, id){ return C.doc(t).collection("comments").doc(id).delete(); },
+    markSeen(t, id){ return C.doc(t).collection("comments").doc(id).update({seen:true}); }
+  };
+}
+function demoStore(){
+  const W = {}, CM = {}, wl = [], sl = {}, cl = {};
+  const today = new Date(), y = today.getFullYear(), m = today.getMonth();
+  const d = (dd, mm=m) => ds(new Date(y, mm, dd));
+  const seed = [
+    {name:"작품A", serial:{start:d(6), days:[2], ep:1, end:""}, events:[{id:rid(8),date:d(3),type:"conti",title:"1~3화"},{id:rid(8),date:d(10),type:"manu",title:"4화"},{id:rid(8),date:d(27),type:"hiatus",title:"정기 휴재",end:""}]},
+    {name:"작품B", serial:{start:d(1,m-2), days:[1,4], ep:1, end:""}, events:[{id:rid(8),date:d(8),type:"manu",title:"22화"},{id:rid(8),date:d(15),type:"conti",title:"24~25화"}]},
+    {name:"작품C", serial:null, events:[{id:rid(8),date:d(13),type:"manu",title:"1~5화 비축"},{id:rid(8),date:d(20),type:"launch",title:"런칭"}]},
+    {name:"작품D", serial:{start:d(1,m-5), days:[6], ep:1, end:""}, events:[{id:rid(8),date:d(17),type:"hiatus",title:"시즌 휴재",end:d(31)}]}
+  ];
+  seed.forEach((s,i) => { const t = rid(); W[t] = {...s, token:t, color:i, createdAt:i}; CM[t] = []; });
+  const first = Object.keys(W)[0];
+  CM[first].push({id:rid(8), name:"작가A", text:"10일 원고 마감 확인했습니다.", at:Date.now()-3600e3, seen:false});
+  const list = () => Object.values(W).map(clone);
+  const emitW = () => wl.forEach(f => f(list()));
+  const emitS = t => (sl[t]||[]).forEach(f => f(W[t] ? clone(W[t]) : null));
+  const emitC = t => (cl[t]||[]).forEach(f => f(clone(CM[t]||[])));
+  return {
+    auth: null,
+    watchWorks(cb){ wl.push(cb); cb(list()); return ()=>{}; },
+    async saveWork(w){ W[w.token] = clone(w); CM[w.token] = CM[w.token] || []; emitW(); emitS(w.token); },
+    async deleteWork(t){ delete W[t]; delete CM[t]; emitW(); emitS(t); },
+    watchShare(t, cb){ (sl[t] = sl[t] || []).push(cb); cb(W[t] ? clone(W[t]) : null); return ()=>{}; },
+    watchComments(t, cb){ (cl[t] = cl[t] || []).push(cb); cb(clone(CM[t]||[])); return ()=>{}; },
+    async addComment(t, c){ (CM[t] = CM[t] || []).unshift({id:rid(8), ...c, at:Date.now(), seen:false}); emitC(t); },
+    async deleteComment(t, id){ CM[t] = (CM[t]||[]).filter(x => x.id !== id); emitC(t); },
+    async markSeen(t, id){ const c = (CM[t]||[]).find(x => x.id === id); if (c) c.seen = true; emitC(t); }
+  };
+}
+const store = DEMO ? demoStore() : fbStore();
+
+/* ===== 상태 ===== */
+const qs = new URLSearchParams(location.search);
+const now = new Date();
+const S = {
+  mode: qs.get("w") ? "author" : "pd",
+  token: qs.get("w"),
+  user: null, denied: false,
+  works: [], share: null, shareLoaded: false,
+  comments: {}, unsubC: {},
+  hidden: new Set(ls.get("cal_hidden", [])),
+  y: now.getFullYear(), m: now.getMonth()
+};
+
+/* ===== 일정 계산 ===== */
+function entriesFor(works, from, to){
+  const map = {};
+  const push = (k, e) => (map[k] = map[k] || []).push(e);
+  for (const w of works){
+    const evs = w.events || [];
+    const hi = new Set();
+    for (const e of evs){
+      const end = e.end && e.end > e.date ? e.end : e.date;
+      for (let d = pdate(e.date); ds(d) <= end; d.setDate(d.getDate()+1)){
+        const k = ds(d);
+        if (e.type === "hiatus") hi.add(k);
+        const cont = k !== e.date;
+        const sd = w.serial && w.serial.days ? w.serial.days : [];
+        if (cont && e.type === "hiatus" && !sd.includes(d.getDay())) continue;
+        if (k >= from && k <= to) push(k, {kind:"ev", w, e, cont});
+      }
+    }
+    const s = w.serial;
+    if (s && s.start && s.days && s.days.length){
+      let ep = (parseInt(s.ep) || 1) - 1;
+      const last = s.end && s.end < to ? s.end : to;
+      for (let d = pdate(s.start); ds(d) <= last; d.setDate(d.getDate()+1)){
+        if (!s.days.includes(d.getDay())) continue;
+        const k = ds(d);
+        if (hi.has(k)) continue;
+        ep++;
+        if (k >= from) push(k, {kind:"serial", w, ep});
+      }
+    }
+  }
+  const ord = new Map(works.map((w,i) => [w.token, i]));
+  for (const k in map) map[k].sort((a,b) => (TYPE_ORDER[a.kind==="serial"?"serial":a.e.type] - TYPE_ORDER[b.kind==="serial"?"serial":b.e.type]) || (ord.get(a.w.token) - ord.get(b.w.token)));
+  return map;
+}
+function entryLabel(x, withWork){
+  const pre = withWork ? x.w.name + " " : "";
+  if (x.kind === "serial") return pre + x.ep + "화 연재";
+  const t = TYPES[x.e.type] ? TYPES[x.e.type].label : "일정";
+  return pre + t + (x.e.title ? " · " + x.e.title : "");
+}
+function entryHTML(x, withWork, k){
+  const c = col(x.w.color);
+  const label = esc(entryLabel(x, withWork));
+  if (x.kind === "serial") return `<span class="ev serial" style="background:${c.solid}" data-act="serial" data-t="${x.w.token}" title="${label}">${label}</span>`;
+  const cls = x.e.type === "hiatus" ? "ev hiatus" : "ev";
+  const st = x.e.type === "hiatus" ? `border-left-color:${c.solid}` : `background:${c.bg};color:${c.fg}`;
+  return `<span class="${cls}" style="${st}" data-act="ev" data-t="${x.w.token}" data-id="${x.e.id}" title="${label}${x.e.memo ? "\n" + esc(x.e.memo) : ""}">${label}</span>`;
+}
+function calendarHTML(works, isPD){
+  const first = new Date(S.y, S.m, 1);
+  const start = new Date(S.y, S.m, 1 - first.getDay());
+  const lastDay = new Date(S.y, S.m + 1, 0);
+  const end = new Date(lastDay); end.setDate(end.getDate() + (6 - lastDay.getDay()));
+  const map = entriesFor(works, ds(start), ds(end));
+  const td = ds(new Date());
+  const MAX = 4;
+  let h = `<div class="cal">` + WD.map((w,i) => `<div class="hd ${i===0?"sun":i===6?"sat":""}">${w}</div>`).join("");
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate()+1)){
+    const k = ds(d), list = map[k] || [];
+    const dw = d.getDay();
+    h += `<div class="cell ${d.getMonth()!==S.m?"out":""} ${k===td?"today":""}" data-act="day" data-d="${k}">`
+       + `<span class="dn ${dw===0?"sun":dw===6?"sat":""}">${d.getDate()}</span>`
+       + list.slice(0, MAX).map(x => entryHTML(x, isPD, k)).join("")
+       + (list.length > MAX ? `<div class="more" data-act="more" data-d="${k}">+${list.length - MAX}건 더보기</div>` : "")
+       + `</div>`;
+  }
+  return h + `</div>`;
+}
+const monthNav = () => `<button class="ic" data-act="prev" aria-label="이전 달">‹</button><span class="mon">${S.y}년 ${S.m+1}월</span><button class="ic" data-act="next" aria-label="다음 달">›</button><button data-act="today">오늘</button>`;
+const sortedWorks = () => [...S.works].sort((a,b) => (a.createdAt||0) - (b.createdAt||0));
+const visibleWorks = () => sortedWorks().filter(w => !S.hidden.has(w.token));
+const findWork = t => S.works.find(w => w.token === t);
+const serialText = s => (s && s.start && s.days && s.days.length) ? `매주 ${s.days.slice().sort().map(d=>WD[d]).join("·")} 연재 (${s.start}~${s.end||""})` : "연재 일정 없음";
+
+/* ===== PD 화면 ===== */
+function renderPD(){
+  const M = document.getElementById("main");
+  if (!S.user){
+    M.innerHTML = `<div class="login card"><h1 style="font-size:18px">작품 일정표</h1><p class="muted">PD 계정으로 로그인해 주세요.</p>${S.denied?`<p style="color:var(--red);font-size:13px">등록된 PD 계정이 아닙니다. (로그인한 계정: ${esc(S.deniedEmail||"")})</p>`:""}<button class="pri" data-act="login">구글 계정으로 로그인</button></div>`;
+    return;
+  }
+  const works = sortedWorks();
+  const unread = works.reduce((n,w) => n + (S.comments[w.token]||[]).filter(c => !c.seen).length, 0);
+  M.innerHTML = `<div class="wrap">
+    ${DEMO?`<div class="demo">미리보기 모드입니다. 저장되지 않으며, 파일 상단에 Firebase 설정을 넣으면 실제로 동작합니다.</div>`:""}
+    <div class="top"><h1>작품 일정표</h1>${monthNav()}<span class="sp"></span>
+      <button data-act="comments">코멘트${unread?`<span class="badge">${unread}</span>`:""}</button>
+      <button data-act="works">작품 관리</button>
+      <button class="pri" data-act="add">+ 일정 추가</button></div>
+    <div class="chips">
+      <span class="chip all" data-act="allon">전체 ${works.length}</span>
+      ${works.map(w => { const c = col(w.color); return `<span class="chip ${S.hidden.has(w.token)?"off":""}" style="background:${c.bg};color:${c.fg}" data-act="chip" data-t="${w.token}">${esc(w.name)}</span>`; }).join("")}
+      ${works.length?`<span class="chip all" data-act="alloff">모두 끄기</span>`:""}
+    </div>
+    <div class="card">${works.length ? calendarHTML(visibleWorks(), true) : `<div style="padding:40px;text-align:center"><p>첫 작품을 등록해 주세요.</p><button class="pri" data-act="works">작품 등록</button></div>`}</div>
+    <p class="hint">날짜 칸을 누르면 그 날짜로 일정이 추가됩니다. 진한 색 일정은 연재일이며, 작품 관리에서 요일을 설정하면 자동으로 표시됩니다.</p>
+  </div>`;
+}
+
+function openModal(html, wide){
+  document.getElementById("modal").innerHTML = `<div class="ov" data-act="close-ov"><div class="md ${wide?"wide":""}">${html}</div></div>`;
+}
+function closeModal(){ document.getElementById("modal").innerHTML = ""; }
+
+function eventModal(date, token, id){
+  const works = sortedWorks();
+  if (!works.length){ toast("먼저 작품을 등록해 주세요"); return worksModal(); }
+  const w = token ? findWork(token) : null;
+  const e = w && id ? (w.events||[]).find(x => x.id === id) : null;
+  const curT = token || (works.find(w=>!S.hidden.has(w.token)) || works[0]).token;
+  openModal(`<h2>${e?"일정 수정":"일정 추가"}</h2>
+    <label>작품</label><select id="f-w" ${e?"disabled":""}>${works.map(x => `<option value="${x.token}" ${x.token===curT?"selected":""}>${esc(x.name)}</option>`).join("")}</select>
+    <label>종류</label><select id="f-type">${Object.entries(TYPES).map(([k,v]) => `<option value="${k}" ${(e?e.type:"manu")===k?"selected":""}>${v.label}</option>`).join("")}</select>
+    <div class="row"><div><label>날짜</label><input type="date" id="f-date" value="${e?e.date:date||ds(new Date())}"></div>
+    <div><label>종료일 (기간일 때만)</label><input type="date" id="f-end" value="${e&&e.end?e.end:""}"></div></div>
+    <label>내용 (예: 15화, 1~3화)</label><input id="f-title" value="${esc(e?e.title:"")}" maxlength="40">
+    <label>메모</label><textarea id="f-memo" maxlength="500">${esc(e?e.memo:"")}</textarea>
+    <p class="hint">입력한 내용과 메모는 해당 작품 작가님께도 보입니다. 연재일에 휴재를 넣으면 그날 연재가 빠지고 회차가 뒤로 밀립니다.</p>
+    <div class="acts">${e?`<button class="del" data-act="ev-del" data-t="${token}" data-id="${id}">삭제</button>`:""}<span class="sp"></span><button data-act="close">취소</button><button class="pri" data-act="ev-save" data-t="${token||""}" data-id="${id||""}">저장</button></div>`);
+}
+async function saveEvent(token, id){
+  const t = token || document.getElementById("f-w").value;
+  const w = clone(findWork(t)); if (!w) return;
+  const v = id => document.getElementById(id).value.trim();
+  const date = v("f-date"); if (!date) return toast("날짜를 입력해 주세요");
+  let end = v("f-end"); if (end && end <= date) end = "";
+  const data = {id: id || rid(10), date, end, type: v("f-type"), title: v("f-title"), memo: v("f-memo")};
+  w.events = (w.events || []).filter(x => x.id !== id).concat([data]);
+  try { await store.saveWork(w); closeModal(); toast("저장했습니다"); } catch(err){ toast("저장하지 못했습니다: " + err.message); }
+}
+async function deleteEvent(token, id){
+  if (!confirm("이 일정을 삭제할까요?")) return;
+  const w = clone(findWork(token)); w.events = (w.events||[]).filter(x => x.id !== id);
+  await store.saveWork(w); closeModal(); toast("삭제했습니다");
+}
+function dayModal(k){
+  const map = entriesFor(visibleWorks(), k, k);
+  const d = pdate(k);
+  openModal(`<h2>${d.getMonth()+1}월 ${d.getDate()}일 (${WD[d.getDay()]})</h2>
+    <div style="margin-top:10px">${(map[k]||[]).map(x => entryHTML(x, true, k)).join("") || `<p class="muted">일정이 없습니다.</p>`}</div>
+    <div class="acts"><button data-act="close">닫기</button><button class="pri" data-act="add-on" data-d="${k}">+ 이 날짜에 추가</button></div>`);
+}
+function worksModal(){
+  const works = sortedWorks();
+  openModal(`<h2>작품 관리</h2><p class="muted">작품마다 작가님 전용 링크가 따로 만들어집니다.</p>
+    <div class="row" style="margin-top:12px"><input id="f-newwork" placeholder="작품명" maxlength="30"><button class="pri" style="flex:none" data-act="work-add">추가</button></div>
+    <div class="wl">${works.map(w => `<div><span class="dot" style="background:${col(w.color).solid}"></span>
+      <div style="flex:1;min-width:0"><div>${esc(w.name)}</div><div class="muted">${serialText(w.serial)}</div></div>
+      <button class="ic" data-act="copy" data-t="${w.token}">링크 복사</button><button class="ic" data-act="work-edit" data-t="${w.token}">설정</button></div>`).join("") || `<div class="muted">등록된 작품이 없습니다.</div>`}</div>
+    <div class="acts"><button data-act="close">닫기</button></div>`, true);
+  setTimeout(() => { const i = document.getElementById("f-newwork"); i && i.focus(); }, 30);
+}
+async function addWork(){
+  const name = document.getElementById("f-newwork").value.trim();
+  if (!name) return toast("작품명을 입력해 주세요");
+  const used = new Set(S.works.map(w => w.color));
+  let color = 0; while (used.has(color) && color < HUES.length) color++;
+  if (color >= HUES.length) color = S.works.length % HUES.length;
+  await store.saveWork({token: rid(), name, color, serial: null, events: [], createdAt: Date.now()});
+  toast("작품을 추가했습니다");
+}
+function workEditModal(t){
+  const w = findWork(t); if (!w) return;
+  const s = w.serial || {};
+  const days = new Set(s.days || []);
+  openModal(`<h2>작품 설정</h2>
+    <label>작품명</label><input id="f-name" value="${esc(w.name)}" maxlength="30">
+    <label>색상</label><div class="sw" id="f-color" data-v="${w.color}">${HUES.map((_,i) => `<span class="${i===w.color?"on":""}" style="background:${col(i).solid}" data-act="pick" data-i="${i}"></span>`).join("")}</div>
+    <div style="border-top:1px solid var(--line);margin-top:16px;padding-top:4px"><label style="font-size:13px;color:var(--tx);font-weight:600">연재 일정</label>
+    <div class="row"><div><label>연재 시작일</label><input type="date" id="f-sstart" value="${s.start||""}"></div><div><label>시작 회차</label><input type="number" id="f-sep" min="1" value="${s.ep||1}"></div></div>
+    <label>연재 요일</label><div class="wdays">${WD.map((d,i) => `<label class="${days.has(i)?"on":""}"><input type="checkbox" value="${i}" ${days.has(i)?"checked":""}>${d}</label>`).join("")}</div>
+    <label>연재 종료일 (완결 시)</label><input type="date" id="f-send" value="${s.end||""}">
+    <p class="hint">연재 시작 전이면 비워 두세요. 시작일을 넣으면 해당 요일마다 회차가 자동으로 표시됩니다.</p></div>
+    <div style="border-top:1px solid var(--line);margin-top:16px;padding-top:4px"><label style="font-size:13px;color:var(--tx);font-weight:600">작가님 링크</label>
+    <div class="row"><input readonly value="${shareLink(t)}" onclick="this.select()"><button style="flex:none" data-act="copy" data-t="${t}">복사</button></div>
+    <div class="row" style="margin-top:8px"><button data-act="preview" data-t="${t}">작가 화면 보기</button><button data-act="regen" data-t="${t}">링크 새로 발급</button></div>
+    <p class="hint">링크가 다른 분께 전달된 것 같으면 새로 발급해 주세요. 이전 링크는 바로 막힙니다(이전 코멘트는 삭제됩니다).</p></div>
+    <div class="acts"><button class="del" data-act="work-del" data-t="${t}">작품 삭제</button><span class="sp"></span><button data-act="works">목록</button><button class="pri" data-act="work-save" data-t="${t}">저장</button></div>`);
+}
+async function saveWorkSettings(t){
+  const w = clone(findWork(t));
+  const v = id => document.getElementById(id).value.trim();
+  const name = v("f-name"); if (!name) return toast("작품명을 입력해 주세요");
+  w.name = name;
+  w.color = +document.getElementById("f-color").dataset.v;
+  const days = [...document.querySelectorAll(".wdays input:checked")].map(x => +x.value);
+  const start = v("f-sstart");
+  if (start && !days.length) return toast("연재 요일을 선택해 주세요");
+  w.serial = start ? {start, days, ep: Math.max(1, parseInt(v("f-sep")) || 1), end: v("f-send")} : null;
+  await store.saveWork(w); toast("저장했습니다"); worksModal();
+}
+async function regenLink(t){
+  if (!confirm("새 링크를 발급할까요? 기존 링크는 더 이상 열리지 않습니다.")) return;
+  const w = clone(findWork(t)); const nt = rid();
+  w.token = nt; await store.saveWork(w); await store.deleteWork(t);
+  toast("새 링크를 발급했습니다"); setTimeout(() => workEditModal(nt), 100);
+}
+async function deleteWork(t){
+  const w = findWork(t);
+  if (!confirm(`'${w.name}' 작품과 모든 일정을 삭제할까요? 되돌릴 수 없습니다.`)) return;
+  await store.deleteWork(t); toast("삭제했습니다"); worksModal();
+}
+function commentsModal(){
+  const all = [];
+  for (const w of sortedWorks()) for (const c of (S.comments[w.token]||[])) all.push({w, c});
+  all.sort((a,b) => (toDate(b.c.at)||new Date()) - (toDate(a.c.at)||new Date()));
+  openModal(`<h2>작가님 코멘트</h2>
+    <div>${all.map(({w,c}) => `<div class="cm ${c.seen?"":"new"}"><div class="meta"><span class="dot" style="background:${col(w.color).solid}"></span><b>${esc(w.name)}</b> · ${esc(c.name||"작가")} · ${fmtTime(c.at)}<span class="sp"></span><button class="ic del" data-act="cm-del" data-t="${w.token}" data-id="${c.id}">삭제</button></div><div class="tx">${esc(c.text)}</div></div>`).join("") || `<p class="muted">받은 코멘트가 없습니다.</p>`}</div>
+    <div class="acts"><button data-act="close">닫기</button></div>`, true);
+  all.filter(x => !x.c.seen).forEach(x => store.markSeen(x.w.token, x.c.id).catch(()=>{}));
+}
+function syncCommentListeners(){
+  const ts = new Set(S.works.map(w => w.token));
+  for (const t of ts) if (!S.unsubC[t]) S.unsubC[t] = store.watchComments(t, list => { S.comments[t] = list; if (S.mode === "pd") renderPD(); });
+  for (const t in S.unsubC) if (!ts.has(t)){ try{ S.unsubC[t](); }catch(e){} delete S.unsubC[t]; delete S.comments[t]; }
+}
+
+/* ===== 작가 화면 ===== */
+function buildAuthor(){
+  document.getElementById("main").innerHTML = `<div class="wrap">
+    <div class="top"><h1 id="a-title">일정표</h1>${`<span id="a-nav" style="display:flex;align-items:center;gap:8px"></span>`}</div>
+    <div id="a-body"></div>
+    <div class="grid2" id="a-side" style="display:none">
+      <div class="card"><b style="font-size:14px">다가오는 일정</b><div class="up" id="a-up"></div></div>
+      <div class="card"><b style="font-size:14px">PD에게 남기기</b>
+        <input id="a-name" placeholder="성함" maxlength="30" style="margin-top:10px" value="${esc(ls.get("cal_author_name",""))}">
+        <textarea id="a-text" placeholder="10일 마감 확인했습니다 / 15일 마감을 17일로 미뤄도 될까요?" maxlength="500" style="margin-top:6px"></textarea>
+        <div id="a-err" style="color:var(--red);font-size:12px"></div>
+        <div style="text-align:right;margin-top:6px"><button class="pri" data-act="a-send">남기기</button></div>
+        <div id="a-cm"></div></div>
+    </div></div>`;
+}
+function renderAuthor(){
+  const w = S.share;
+  if (!S.shareLoaded) { document.getElementById("a-body").innerHTML = `<p class="muted">불러오는 중…</p>`; return; }
+  if (!w){
+    document.getElementById("a-title").textContent = "일정표";
+    document.getElementById("a-nav").innerHTML = "";
+    document.getElementById("a-side").style.display = "none";
+    document.getElementById("a-body").innerHTML = `<div class="card" style="padding:40px;text-align:center"><p>열 수 없는 링크입니다.</p><p class="muted">링크가 바뀌었을 수 있습니다. 담당 PD에게 새 링크를 요청해 주세요.</p></div>`;
+    return;
+  }
+  document.title = w.name + " 일정표";
+  document.getElementById("a-title").innerHTML = `<span class="dot" style="display:inline-block;background:${col(w.color).solid};margin-right:6px"></span>${esc(w.name)} 일정표`;
+  document.getElementById("a-nav").innerHTML = monthNav();
+  document.getElementById("a-side").style.display = "";
+  document.getElementById("a-body").innerHTML = (DEMO?`<div class="demo">작가 화면 미리보기입니다. <a href="#" data-act="back-pd">PD 화면으로 돌아가기</a></div>`:"")
+    + `<div class="card">${calendarHTML([w], false)}</div><p class="hint">${esc(serialText(w.serial))}</p>`;
+  const from = new Date(); const to = new Date(); to.setDate(to.getDate() + 45);
+  const map = entriesFor([w], ds(from), ds(to));
+  const rows = Object.keys(map).sort().flatMap(k => map[k].filter(x => !x.cont).map(x => ({k, x})));
+  document.getElementById("a-up").innerHTML = rows.slice(0, 15).map(({k,x}) => { const d = pdate(k); return `<div><span class="d">${d.getMonth()+1}/${d.getDate()} (${WD[d.getDay()]})</span><span>${esc(entryLabel(x,false))}${x.kind==="ev"&&x.e.end?` ~ ${x.e.end.slice(5).replace("-","/")}`:""}${x.kind==="ev"&&x.e.memo?`<div class="muted">${esc(x.e.memo)}</div>`:""}</span></div>`; }).join("") || `<p class="muted">45일 안에 예정된 일정이 없습니다.</p>`;
+  const cms = S.comments[w.token] || [];
+  document.getElementById("a-cm").innerHTML = cms.length ? `<div style="margin-top:10px;border-top:1px solid var(--line)">${cms.map(c => `<div class="cm"><div class="meta">${esc(c.name||"")} · ${fmtTime(c.at)}</div><div class="tx">${esc(c.text)}</div></div>`).join("")}</div>` : "";
+}
+async function authorSend(){
+  const name = document.getElementById("a-name").value.trim();
+  const text = document.getElementById("a-text").value.trim();
+  const err = document.getElementById("a-err");
+  if (!name) { err.textContent = "성함을 입력해 주세요"; return; }
+  if (!text) { err.textContent = "내용을 입력해 주세요"; return; }
+  err.textContent = "";
+  ls.set("cal_author_name", name);
+  try { await store.addComment(S.token, {name, text}); document.getElementById("a-text").value = ""; toast("PD에게 전달했습니다"); }
+  catch(e){ err.textContent = "전송하지 못했습니다. 잠시 후 다시 시도해 주세요."; }
+}
+function startAuthor(){
+  buildAuthor(); renderAuthor();
+  store.watchShare(S.token, w => { S.share = w; S.shareLoaded = true; renderAuthor(); }, () => { S.share = null; S.shareLoaded = true; renderAuthor(); });
+  store.watchComments(S.token, list => { S.comments[S.token] = list; renderAuthor(); });
+}
+
+/* ===== 이벤트 ===== */
+const render = () => S.mode === "pd" ? renderPD() : renderAuthor();
+document.addEventListener("click", async ev => {
+  const el = ev.target.closest("[data-act]"); if (!el) return;
+  const a = el.dataset.act, t = el.dataset.t, id = el.dataset.id, d = el.dataset.d;
+  if (a === "close-ov"){ if (ev.target === el) closeModal(); return; }
+  ev.stopPropagation();
+  if (["ev","serial","more"].includes(a) && S.mode === "author") return;
+  switch(a){
+    case "prev": S.m--; if (S.m < 0){ S.m = 11; S.y--; } render(); break;
+    case "next": S.m++; if (S.m > 11){ S.m = 0; S.y++; } render(); break;
+    case "today": S.y = now.getFullYear(); S.m = now.getMonth(); render(); break;
+    case "login": try { await store.auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); } catch(e){ toast("로그인하지 못했습니다"); } break;
+    case "add": eventModal(); break;
+    case "add-on": eventModal(d); break;
+    case "day": if (S.mode === "pd") eventModal(d); break;
+    case "more": dayModal(d); break;
+    case "ev": eventModal(null, t, id); break;
+    case "serial": workEditModal(t); break;
+    case "ev-save": saveEvent(t, id); break;
+    case "ev-del": deleteEvent(t, id); break;
+    case "close": closeModal(); break;
+    case "works": worksModal(); break;
+    case "work-add": addWork(); break;
+    case "work-edit": workEditModal(t); break;
+    case "work-save": saveWorkSettings(t); break;
+    case "work-del": deleteWork(t); break;
+    case "regen": regenLink(t); break;
+    case "pick": { const p = document.getElementById("f-color"); p.dataset.v = el.dataset.i; p.querySelectorAll("span").forEach(s => s.classList.toggle("on", s === el)); break; }
+    case "copy": try { await navigator.clipboard.writeText(shareLink(t)); toast("링크를 복사했습니다"); } catch(e){ prompt("링크를 복사해 주세요", shareLink(t)); } break;
+    case "preview":
+      if (DEMO){ closeModal(); S.mode = "author"; S.token = t; S.share = null; S.shareLoaded = false; startAuthor(); }
+      else window.open(shareLink(t), "_blank");
+      break;
+    case "back-pd": ev.preventDefault(); S.mode = "pd"; renderPD(); break;
+    case "chip": S.hidden.has(t) ? S.hidden.delete(t) : S.hidden.add(t); ls.set("cal_hidden", [...S.hidden]); renderPD(); break;
+    case "allon": S.hidden.clear(); ls.set("cal_hidden", []); renderPD(); break;
+    case "alloff": S.works.forEach(w => S.hidden.add(w.token)); ls.set("cal_hidden", [...S.hidden]); renderPD(); break;
+    case "comments": commentsModal(); break;
+    case "cm-del": if (confirm("코멘트를 삭제할까요?")){ await store.deleteComment(t, id); commentsModal(); } break;
+    case "a-send": authorSend(); break;
+  }
+});
+document.addEventListener("change", ev => {
+  if (ev.target.matches(".wdays input")) ev.target.parentElement.classList.toggle("on", ev.target.checked);
+});
+document.addEventListener("keydown", ev => {
+  if (ev.key === "Escape") closeModal();
+  if (ev.key === "Enter" && ev.target.id === "f-newwork") addWork();
+});
+
+/* ===== 시작 ===== */
+function startPD(){
+  let unsubW = null;
+  const begin = () => {
+    unsubW = store.watchWorks(list => { S.works = list; syncCommentListeners(); renderPD(); }, e => toast("불러오지 못했습니다: " + e.message));
+  };
+  if (DEMO){ S.user = {email:"demo"}; begin(); return; }
+  renderPD();
+  store.auth.onAuthStateChanged(u => {
+    if (u && !PD_EMAILS.includes(u.email)){ S.denied = true; S.deniedEmail = u.email; store.auth.signOut(); return; }
+    S.user = u;
+    if (u && !unsubW) begin();
+    renderPD();
+  });
+}
+S.mode === "author" ? startAuthor() : startPD();
+</script>
+</body>
+</html>
