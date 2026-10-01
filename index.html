@@ -37,6 +37,7 @@ label{display:block;font-size:12px;color:var(--tx2);margin:12px 0 4px}
 .today .dn{background:var(--acc);color:#fff!important}
 .ev{display:block;font-size:11.5px;line-height:1.35;border-radius:4px;padding:2px 5px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
 .ev.serial{color:#fff}
+.ev.old{opacity:.45;text-decoration:line-through}
 .ev.hiatus{background:#f0efeb!important;color:var(--tx2)!important;border-left:3px solid}
 .ev[draggable="true"]{cursor:grab}.ev.dragging{opacity:.4}.cell.dropok{background:var(--accbg)!important;outline:2px dashed var(--acc);outline-offset:-2px}
 label.opt{display:block;border:1px solid var(--line2);border-radius:8px;padding:10px 12px;margin:8px 0 0;font-size:13px;color:var(--tx);cursor:pointer}
@@ -139,6 +140,9 @@ function fbStore(){
     auth: firebase.auth(),
     watchWorks(cb, err, owner){ return C.where("owner", "==", owner).onSnapshot(s => cb(s.docs.map(d => ({...d.data(), token:d.id}))), err); },
     saveWork(w){ const {token, ...data} = w; return C.doc(token).set(data); },
+    mutate(t, fn){ const ref = C.doc(t); return db.runTransaction(async tx => { const s = await tx.get(ref); if (!s.exists) throw new Error("작품을 찾을 수 없습니다"); tx.update(ref, {events: fn(clone(s.data().events || []))}); }); },
+    update(t, fields){ return C.doc(t).update(fields); },
+    pdWorks(uid){ return db.collection("users").doc(uid).collection("data").doc("main").get().then(d => d.exists ? (d.data().works || []).map(w => ({id: w.id, title: w.title})) : []).catch(() => []); },
     async deleteWork(t){ const s = await C.doc(t).collection("comments").get(); await Promise.all(s.docs.map(d=>d.ref.delete())); return C.doc(t).delete(); },
     watchShare(t, cb, err){ return C.doc(t).onSnapshot(d => cb(d.exists ? {...d.data(), token:d.id} : null), err); },
     watchComments(t, cb){ return C.doc(t).collection("comments").orderBy("at","desc").limit(50).onSnapshot(s => cb(s.docs.map(d => ({id:d.id, ...d.data()}))), () => cb([])); },
@@ -168,6 +172,9 @@ function demoStore(){
     auth: null,
     watchWorks(cb){ wl.push(cb); cb(list()); return ()=>{}; },
     async saveWork(w){ W[w.token] = clone(w); CM[w.token] = CM[w.token] || []; emitW(); emitS(w.token); },
+    async mutate(t, fn){ W[t].events = fn(clone(W[t].events || [])); emitW(); emitS(t); },
+    async update(t, f){ Object.assign(W[t], clone(f)); emitW(); emitS(t); },
+    async pdWorks(){ return [{id:"demo1", title:"그 공작가의 막내딸은 사실 악녀였다"}, {id:"demo2", title:"질 나쁜 선배"}]; },
     async deleteWork(t){ delete W[t]; delete CM[t]; emitW(); emitS(t); },
     watchShare(t, cb){ (sl[t] = sl[t] || []).push(cb); cb(W[t] ? clone(W[t]) : null); return ()=>{}; },
     watchComments(t, cb){ (cl[t] = cl[t] || []).push(cb); cb(clone(CM[t]||[])); return ()=>{}; },
@@ -228,21 +235,29 @@ function entriesFor(works, from, to){
 }
 const SHORT = {conti:"콘티", manu:"원고", cover_draft:"표지시안", cover:"표지", hiatus:"휴재", launch:"런칭", etc:"기타"};
 const workShort = w => (w.short && w.short.trim()) || w.name;
+const VER_TYPES = new Set(["manu", "conti"]);
+const epText = e => (e.episode ? ` ${e.episode}화` : "") + (e.version ? ` (${e.version}차)` : "");
+function calcVer(events, ev){
+  if (!ev.episode || !VER_TYPES.has(ev.type)) return null;
+  const n = events.filter(x => x.id !== ev.id && x.type === ev.type && String(x.episode || "") === String(ev.episode)).length;
+  return n > 0 ? n + 1 : null;
+}
+const superseded = (w, e) => !!e.episode && VER_TYPES.has(e.type) && (w.events || []).some(o => o.id !== e.id && o.type === e.type && String(o.episode || "") === String(e.episode) && (o.version || 1) > (e.version || 1));
 function entryLabel(x){
   if (x.kind === "serial") return x.ep + "화 연재";
   const t = TYPES[x.e.type] ? TYPES[x.e.type].label : "일정";
-  return t + (x.e.title ? " · " + x.e.title : "");
+  return t + epText(x.e) + (x.e.title ? " · " + x.e.title : "");
 }
 function entryMain(x){
   if (x.kind === "serial") return x.ep + "화";
-  return (SHORT[x.e.type] || "일정") + (x.e.title ? " " + x.e.title : "");
+  return (SHORT[x.e.type] || "일정") + epText(x.e) + (x.e.title ? " " + x.e.title : "");
 }
 function entryHTML(x, withWork, k){
   const c = col(x.w.color);
   const tip = esc(x.w.name + " · " + entryLabel(x) + (x.kind === "ev" && x.e.memo ? "\n" + x.e.memo : ""));
   const inner = withWork ? `<b style="font-weight:600">${esc(entryMain(x))}</b> ${esc(workShort(x.w))}` : esc(entryLabel(x));
   if (x.kind === "serial") return `<span class="ev serial" style="background:${c.solid}" data-act="serial" data-t="${x.w.token}" title="${tip}">${inner}</span>`;
-  const cls = x.e.type === "hiatus" ? "ev hiatus" : "ev";
+  const cls = (x.e.type === "hiatus" ? "ev hiatus" : "ev") + (superseded(x.w, x.e) ? " old" : "");
   const st = x.e.type === "hiatus" ? `border-left-color:${c.solid}` : `background:${c.bg};color:${c.fg}`;
   return `<span class="${cls}" style="${st}" data-act="ev" data-t="${x.w.token}" data-id="${x.e.id}" ${withWork && S.mode === "pd" ? 'draggable="true"' : ""} title="${tip}">${inner}</span>`;
 }
@@ -310,25 +325,31 @@ function eventModal(date, token, id){
   const curT = token || (works.find(w=>!S.hidden.has(w.token)) || works[0]).token;
   openModal(`<h2>${e?"일정 수정":"일정 추가"}</h2>
     <label>작품</label><select id="f-w" ${e?"disabled":""}>${works.map(x => `<option value="${x.token}" ${x.token===curT?"selected":""}>${esc(x.name)}</option>`).join("")}</select>
-    <label>종류</label><select id="f-type">${Object.entries(TYPES).map(([k,v]) => `<option value="${k}" ${(e?e.type:"manu")===k?"selected":""}>${v.label}</option>`).join("")}</select>
+    <div class="row"><div style="flex:2"><label>종류</label><select id="f-type">${Object.entries(TYPES).filter(([k]) => k !== "etc" || (e && e.type === "etc")).map(([k,v]) => `<option value="${k}" ${(e?e.type:"manu")===k?"selected":""}>${v.label}</option>`).join("")}</select></div>
+    <div><label>회차</label><input id="f-ep" value="${esc(e&&e.episode?e.episode:"")}" placeholder="예: 62" maxlength="10"></div></div>
     <div class="row"><div><label>날짜</label><input type="date" id="f-date" value="${e?e.date:date||ds(new Date())}"></div>
     <div><label>종료일 (기간일 때만)</label><input type="date" id="f-end" value="${e&&e.end?e.end:""}"></div></div>
-    <label>내용 (예: 15화, 1~3화)</label><input id="f-title" value="${esc(e?e.title:"")}" maxlength="40">
+    <label>내용 (선택, 예: 1~3화 비축)</label><input id="f-title" value="${esc(e?e.title:"")}" maxlength="40">
     <label>메모</label><textarea id="f-memo" maxlength="500">${esc(e?e.memo:"")}</textarea>
-    <p class="hint">입력한 내용과 메모는 해당 작품 작가님께도 보입니다. 연재일에 휴재를 넣으면 그날 연재가 빠지고 회차가 뒤로 밀립니다.</p>
+    <p class="hint">입력한 내용과 메모는 해당 작품 작가님께도 보입니다. 같은 회차를 다시 등록하면 (2차)처럼 차수가 자동으로 붙습니다. 연재일에 휴재를 넣으면 그날 연재가 빠지고 회차가 뒤로 밀립니다.</p>
     <div class="acts">${e?`<button class="del" data-act="ev-del" data-t="${token}" data-id="${id}">삭제</button>`:""}<span class="sp"></span><button data-act="close">취소</button><button class="pri" data-act="ev-save" data-t="${token||""}" data-id="${id||""}">저장</button></div>`);
 }
 async function saveEvent(token, id){
   const t = token || document.getElementById("f-w").value;
-  const w = clone(findWork(t)); if (!w) return;
+  const w = findWork(t); if (!w) return;
   const v = id => document.getElementById(id).value.trim();
   const date = v("f-date"); if (!date) return toast("날짜를 입력해 주세요");
   let end = v("f-end"); if (end && end <= date) end = "";
-  const data = {id: id || rid(10), date, end, type: v("f-type"), title: v("f-title"), memo: v("f-memo")};
   const old = id ? (w.events || []).find(x => x.id === id) : null;
+  const episode = v("f-ep").replace(/화$/, "").trim();
+  const data = {...(old || {}), id: id || rid(10), date, end, type: v("f-type"), title: v("f-title"), memo: v("f-memo"), episode};
+  if (!old || old.type !== data.type || String(old.episode || "") !== episode) data.version = calcVer(w.events || [], data);
+  if (data.version === undefined) data.version = null;
   if (old && old.date !== date) return moveRequest(t, id, date, data);
-  w.events = (w.events || []).filter(x => x.id !== id).concat([data]);
-  try { await store.saveWork(w); closeModal(); toast("저장했습니다"); } catch(err){ toast("저장하지 못했습니다: " + err.message); }
+  try {
+    await store.mutate(t, evs => { const i = evs.findIndex(x => x.id === data.id); if (i >= 0) evs[i] = data; else { if (!old) data.version = calcVer(evs, data); evs.push(data); } return evs; });
+    closeModal(); toast("저장했습니다");
+  } catch(err){ toast("저장하지 못했습니다: " + err.message); }
 }
 const addDays = (str, n) => { const d = pdate(str); d.setDate(d.getDate() + n); return ds(d); };
 const dayDiff = (a, b) => Math.round((pdate(b) - pdate(a)) / 864e5);
@@ -362,21 +383,25 @@ function moveRequest(t, id, newDate, patch){
 }
 async function applyMove(mode){
   const m = S.pendingMove; if (!m) return;
-  const w = clone(findWork(m.t)); const e = w.events.find(x => x.id === m.id);
-  const targets = new Set(shiftTargets(w, e, mode).map(x => x.id));
-  const shift = x => { x.date = addDays(x.date, m.delta); if (x.end) x.end = addDays(x.end, m.delta); };
-  w.events = w.events.map(x => {
-    if (x.id === m.id){ const y = m.patch ? {...m.patch} : {...x}; if (!m.patch){ shift(y); } return y; }
-    if (targets.has(x.id)){ const y = {...x}; shift(y); return y; }
-    return x;
-  });
   S.pendingMove = null;
-  try { await store.saveWork(w); closeModal(); toast(targets.size ? `${targets.size + 1}건을 옮겼습니다` : "옮겼습니다"); } catch(err){ toast("저장하지 못했습니다: " + err.message); }
+  const shift = x => { x.date = addDays(x.date, m.delta); if (x.end) x.end = addDays(x.end, m.delta); };
+  let targets = new Set();
+  try {
+    await store.mutate(m.t, evs => {
+      const e = evs.find(x => x.id === m.id); if (!e) return evs;
+      targets = new Set(shiftTargets({events: evs}, e, mode).map(x => x.id));
+      return evs.map(x => {
+        if (x.id === m.id){ const y = m.patch ? {...x, ...m.patch} : {...x}; if (!m.patch) shift(y); return y; }
+        if (targets.has(x.id)){ const y = {...x}; shift(y); return y; }
+        return x;
+      });
+    });
+    closeModal(); toast(targets.size ? `${targets.size + 1}건을 옮겼습니다` : "옮겼습니다"); } catch(err){ toast("저장하지 못했습니다: " + err.message); }
 }
 async function deleteEvent(token, id){
   if (!confirm("이 일정을 삭제할까요?")) return;
-  const w = clone(findWork(token)); w.events = (w.events||[]).filter(x => x.id !== id);
-  await store.saveWork(w); closeModal(); toast("삭제했습니다");
+  try { await store.mutate(token, evs => evs.filter(x => x.id !== id)); closeModal(); toast("삭제했습니다"); }
+  catch(err){ toast("삭제하지 못했습니다: " + err.message); }
 }
 function dayModal(k){
   const map = entriesFor(visibleWorks(), k, k);
@@ -390,7 +415,7 @@ function worksModal(){
   openModal(`<h2>작품 관리</h2><p class="muted">작품마다 작가님 전용 링크가 따로 만들어집니다.</p>
     <div class="row" style="margin-top:12px"><input id="f-newwork" placeholder="작품명" maxlength="30"><button class="pri" style="flex:none" data-act="work-add">추가</button></div>
     <div class="wl">${works.map(w => `<div><span class="dot" style="background:${col(w.color).solid}"></span>
-      <div style="flex:1;min-width:0"><div>${esc(w.name)}</div><div class="muted">${serialText(w.serial)}</div></div>
+      <div style="flex:1;min-width:0"><div>${esc(w.name)}</div><div class="muted">${serialText(w.serial)}${w.pdWorkId ? " · PD 매니저 연결됨" : ""}</div></div>
       <button class="ic" data-act="copy" data-t="${w.token}">링크 복사</button><button class="ic" data-act="work-edit" data-t="${w.token}">설정</button></div>`).join("") || `<div class="muted">등록된 작품이 없습니다.</div>`}</div>
     <div class="acts"><button data-act="close">닫기</button></div>`, true);
   setTimeout(() => { const i = document.getElementById("f-newwork"); i && i.focus(); }, 30);
@@ -417,11 +442,20 @@ function workEditModal(t){
     <label>연재 요일</label><div class="wdays">${WD.map((d,i) => `<label class="${days.has(i)?"on":""}"><input type="checkbox" value="${i}" ${days.has(i)?"checked":""}>${d}</label>`).join("")}</div>
     <label>연재 종료일 (완결 시)</label><input type="date" id="f-send" value="${s.end||""}">
     <p class="hint">연재 시작 전이면 비워 두세요. 시작일을 넣으면 해당 요일마다 회차가 자동으로 표시됩니다.</p></div>
+    <div style="border-top:1px solid var(--line);margin-top:16px;padding-top:4px"><label style="font-size:13px;color:var(--tx);font-weight:600">PD 매니저 마감 달력 연결</label>
+    <select id="f-pd"><option value="">불러오는 중…</option></select>
+    <p class="hint">연결하면 원고·콘티·표지 시안·표지 마감·런칭·휴재 일정이 PD 매니저 마감 달력과 함께 관리됩니다. 어느 쪽에서 고쳐도 양쪽에 반영됩니다.</p></div>
     <div style="border-top:1px solid var(--line);margin-top:16px;padding-top:4px"><label style="font-size:13px;color:var(--tx);font-weight:600">작가님 링크</label>
     <div class="row"><input readonly value="${shareLink(t)}" onclick="this.select()"><button style="flex:none" data-act="copy" data-t="${t}">복사</button></div>
     <div class="row" style="margin-top:8px"><button data-act="preview" data-t="${t}">작가 화면 보기</button><button data-act="regen" data-t="${t}">링크 새로 발급</button></div>
     <p class="hint">링크가 다른 분께 전달된 것 같으면 새로 발급해 주세요. 이전 링크는 바로 막힙니다(이전 코멘트는 삭제됩니다).</p></div>
     <div class="acts"><button class="del" data-act="work-del" data-t="${t}">작품 삭제</button><span class="sp"></span><button data-act="works">목록</button><button class="pri" data-act="work-save" data-t="${t}">저장</button></div>`);
+  store.pdWorks(S.user && S.user.uid).then(list => {
+    const sel = document.getElementById("f-pd"); if (!sel) return;
+    const used = new Map(S.works.filter(x => x.pdWorkId && x.token !== t).map(x => [x.pdWorkId, x.name]));
+    sel.innerHTML = `<option value="">연결 안 함</option>` + list.map(p => `<option value="${esc(p.id)}" ${w.pdWorkId === p.id ? "selected" : ""} ${used.has(p.id) ? "disabled" : ""}>${esc(p.title)}${used.has(p.id) ? " (" + esc(used.get(p.id)) + "에 연결됨)" : ""}</option>`).join("");
+    if (!list.length) sel.innerHTML = `<option value="">PD 매니저 작품을 불러오지 못했습니다</option>`; else sel.dataset.loaded = "1";
+  });
 }
 async function saveWorkSettings(t){
   const w = clone(findWork(t));
@@ -434,7 +468,10 @@ async function saveWorkSettings(t){
   const start = v("f-sstart");
   if (start && !days.length) return toast("연재 요일을 선택해 주세요");
   w.serial = start ? {start, days, ep: Math.max(1, parseInt(v("f-sep")) || 1), end: v("f-send")} : null;
-  await store.saveWork(w); toast("저장했습니다"); worksModal();
+  const pdSel = document.getElementById("f-pd");
+  const pdWorkId = pdSel && pdSel.dataset.loaded ? pdSel.value : (w.pdWorkId || "");
+  try { await store.update(t, {name: w.name, short: w.short, color: w.color, serial: w.serial, pdWorkId}); toast("저장했습니다"); worksModal(); }
+  catch(err){ toast("저장하지 못했습니다: " + err.message); }
 }
 async function regenLink(t){
   if (!confirm("새 링크를 발급할까요? 기존 링크는 더 이상 열리지 않습니다.")) return;
