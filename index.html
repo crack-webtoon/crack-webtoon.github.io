@@ -38,6 +38,10 @@ label{display:block;font-size:12px;color:var(--tx2);margin:12px 0 4px}
 .ev{display:block;font-size:11.5px;line-height:1.35;border-radius:4px;padding:2px 5px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
 .ev.serial{color:#fff}
 .ev.hiatus{background:#f0efeb!important;color:var(--tx2)!important;border-left:3px solid}
+.ev[draggable="true"]{cursor:grab}.ev.dragging{opacity:.4}.cell.dropok{background:var(--accbg)!important;outline:2px dashed var(--acc);outline-offset:-2px}
+label.opt{display:block;border:1px solid var(--line2);border-radius:8px;padding:10px 12px;margin:8px 0 0;font-size:13px;color:var(--tx);cursor:pointer}
+label.opt .muted{margin:3px 0 0 22px}
+label.opt input{width:auto;margin:0 6px 0 0;vertical-align:-2px}
 .more{font-size:11.5px;color:var(--tx2);padding:2px 5px;cursor:pointer}
 .more:hover{text-decoration:underline}
 .ov{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:flex-start;justify-content:center;padding:6vh 16px;z-index:50;overflow:auto}
@@ -106,9 +110,11 @@ const TYPES = {
   manu:   {label:"원고 마감"},
   hiatus: {label:"휴재"},
   launch: {label:"런칭"},
+  cover_draft: {label:"표지 시안"},
+  cover: {label:"표지 마감"},
   etc:    {label:"기타"}
 };
-const TYPE_ORDER = {serial:0, launch:1, manu:2, conti:3, hiatus:4, etc:5};
+const TYPE_ORDER = {serial:0, launch:1, manu:2, conti:3, cover_draft:4, cover:5, hiatus:6, etc:7};
 const HUES = [250,160,15,330,200,45,280,120,0,185,300,75,225,140,30,350,265,100,210,55];
 const col = i => { const h = HUES[(i||0) % HUES.length]; return {bg:`hsl(${h} 70% 92%)`, fg:`hsl(${h} 55% 26%)`, solid:`hsl(${h} 48% 44%)`}; };
 const WD = ["일","월","화","수","목","금","토"];
@@ -219,7 +225,7 @@ function entriesFor(works, from, to){
   for (const k in map) map[k].sort((a,b) => (TYPE_ORDER[a.kind==="serial"?"serial":a.e.type] - TYPE_ORDER[b.kind==="serial"?"serial":b.e.type]) || (ord.get(a.w.token) - ord.get(b.w.token)));
   return map;
 }
-const SHORT = {conti:"콘티", manu:"원고", hiatus:"휴재", launch:"런칭", etc:"기타"};
+const SHORT = {conti:"콘티", manu:"원고", cover_draft:"표지시안", cover:"표지", hiatus:"휴재", launch:"런칭", etc:"기타"};
 const workShort = w => (w.short && w.short.trim()) || w.name;
 function entryLabel(x){
   if (x.kind === "serial") return x.ep + "화 연재";
@@ -237,7 +243,7 @@ function entryHTML(x, withWork, k){
   if (x.kind === "serial") return `<span class="ev serial" style="background:${c.solid}" data-act="serial" data-t="${x.w.token}" title="${tip}">${inner}</span>`;
   const cls = x.e.type === "hiatus" ? "ev hiatus" : "ev";
   const st = x.e.type === "hiatus" ? `border-left-color:${c.solid}` : `background:${c.bg};color:${c.fg}`;
-  return `<span class="${cls}" style="${st}" data-act="ev" data-t="${x.w.token}" data-id="${x.e.id}" title="${tip}">${inner}</span>`;
+  return `<span class="${cls}" style="${st}" data-act="ev" data-t="${x.w.token}" data-id="${x.e.id}" ${withWork && S.mode === "pd" ? 'draggable="true"' : ""} title="${tip}">${inner}</span>`;
 }
 function calendarHTML(works, isPD){
   const first = new Date(S.y, S.m, 1);
@@ -318,8 +324,53 @@ async function saveEvent(token, id){
   const date = v("f-date"); if (!date) return toast("날짜를 입력해 주세요");
   let end = v("f-end"); if (end && end <= date) end = "";
   const data = {id: id || rid(10), date, end, type: v("f-type"), title: v("f-title"), memo: v("f-memo")};
+  const old = id ? (w.events || []).find(x => x.id === id) : null;
+  if (old && old.date !== date) return moveRequest(t, id, date, data);
   w.events = (w.events || []).filter(x => x.id !== id).concat([data]);
   try { await store.saveWork(w); closeModal(); toast("저장했습니다"); } catch(err){ toast("저장하지 못했습니다: " + err.message); }
+}
+const addDays = (str, n) => { const d = pdate(str); d.setDate(d.getDate() + n); return ds(d); };
+const dayDiff = (a, b) => Math.round((pdate(b) - pdate(a)) / 864e5);
+const SKIP_ALL = new Set(["hiatus", "launch"]);
+function shiftTargets(w, e, mode){
+  const evs = (w.events || []).filter(x => x.id !== e.id && x.date > e.date);
+  if (mode === "same") return evs.filter(x => x.type === e.type);
+  if (mode === "all") return evs.filter(x => !SKIP_ALL.has(x.type));
+  return [];
+}
+const md = s => s.slice(5).replace("-", "/");
+function moveRequest(t, id, newDate, patch){
+  const w = findWork(t); if (!w) return;
+  const e = (w.events || []).find(x => x.id === id); if (!e) return;
+  const delta = dayDiff(e.date, newDate);
+  if (!delta && !patch) return;
+  const same = shiftTargets(w, e, "same").sort((a,b) => a.date < b.date ? -1 : 1);
+  const all = shiftTargets(w, e, "all");
+  S.pendingMove = {t, id, newDate, patch, delta};
+  if (!same.length && !all.length) return applyMove("only");
+  const dir = delta > 0 ? `${delta}일 뒤로` : `${-delta}일 앞으로`;
+  const verb = delta > 0 ? "미루기" : "당기기";
+  const prev = same.slice(0,2).map(x => `${esc(x.title || TYPES[x.type].label)} ${md(x.date)}→${md(addDays(x.date, delta))}`).join(" · ") + (same.length > 2 ? ` 외 ${same.length - 2}건` : "");
+  const lbl = TYPES[e.type] ? TYPES[e.type].label : "일정";
+  openModal(`<h2>${esc(lbl)}${e.title ? " " + esc(e.title) : ""} · ${md(e.date)} → ${md(newDate)} (${dir})</h2>
+    <p class="muted">${esc(w.name)} · 이후 일정도 같이 옮길까요?</p>
+    <label class="opt"><input type="radio" name="mv" value="only"> 이 일정만 옮기기</label>
+    ${same.length ? `<label class="opt"><input type="radio" name="mv" value="same" checked> 이후 <b>${esc(lbl)}</b> ${same.length}건도 모두 ${Math.abs(delta)}일씩 ${verb}<div class="muted">${prev}</div></label>` : ""}
+    ${all.length ? `<label class="opt"><input type="radio" name="mv" value="all" ${same.length ? "" : "checked"}> 이후 <b>모든 일정</b> ${all.length}건 ${Math.abs(delta)}일씩 ${verb}<div class="muted">휴재·런칭은 제외</div></label>` : ""}
+    <div class="acts"><button data-act="close">취소</button><button class="pri" data-act="mv-apply">옮기기</button></div>`);
+}
+async function applyMove(mode){
+  const m = S.pendingMove; if (!m) return;
+  const w = clone(findWork(m.t)); const e = w.events.find(x => x.id === m.id);
+  const targets = new Set(shiftTargets(w, e, mode).map(x => x.id));
+  const shift = x => { x.date = addDays(x.date, m.delta); if (x.end) x.end = addDays(x.end, m.delta); };
+  w.events = w.events.map(x => {
+    if (x.id === m.id){ const y = m.patch ? {...m.patch} : {...x}; if (!m.patch){ shift(y); } return y; }
+    if (targets.has(x.id)){ const y = {...x}; shift(y); return y; }
+    return x;
+  });
+  S.pendingMove = null;
+  try { await store.saveWork(w); closeModal(); toast(targets.size ? `${targets.size + 1}건을 옮겼습니다` : "옮겼습니다"); } catch(err){ toast("저장하지 못했습니다: " + err.message); }
 }
 async function deleteEvent(token, id){
   if (!confirm("이 일정을 삭제할까요?")) return;
@@ -506,7 +557,27 @@ document.addEventListener("click", async ev => {
     case "comments": commentsModal(); break;
     case "cm-del": if (confirm("코멘트를 삭제할까요?")){ await store.deleteComment(t, id); commentsModal(); } break;
     case "a-send": authorSend(); break;
+    case "mv-apply": { const r = document.querySelector('input[name="mv"]:checked'); applyMove(r ? r.value : "only"); break; }
   }
+});
+let DRAG = null;
+document.addEventListener("dragstart", ev => {
+  const el = ev.target.closest && ev.target.closest('.ev[draggable="true"]'); if (!el) return;
+  DRAG = {t: el.dataset.t, id: el.dataset.id};
+  ev.dataTransfer.effectAllowed = "move"; ev.dataTransfer.setData("text/plain", el.dataset.id);
+  setTimeout(() => el.classList.add("dragging"), 0);
+});
+document.addEventListener("dragend", () => { DRAG = null; document.querySelectorAll(".dragging,.dropok").forEach(x => x.classList.remove("dragging","dropok")); });
+document.addEventListener("dragover", ev => {
+  if (!DRAG) return; const c = ev.target.closest && ev.target.closest(".cell"); if (!c) return;
+  ev.preventDefault(); ev.dataTransfer.dropEffect = "move";
+  document.querySelectorAll(".dropok").forEach(x => x !== c && x.classList.remove("dropok")); c.classList.add("dropok");
+});
+document.addEventListener("drop", ev => {
+  if (!DRAG) return; const c = ev.target.closest && ev.target.closest(".cell"); if (!c) return;
+  ev.preventDefault(); const d = DRAG; DRAG = null;
+  document.querySelectorAll(".dragging,.dropok").forEach(x => x.classList.remove("dragging","dropok"));
+  closeModal(); moveRequest(d.t, d.id, c.dataset.d);
 });
 document.addEventListener("change", ev => {
   if (ev.target.matches(".wdays input")) ev.target.parentElement.classList.toggle("on", ev.target.checked);
