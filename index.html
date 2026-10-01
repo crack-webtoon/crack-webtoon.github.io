@@ -76,11 +76,54 @@ label.opt input{width:auto;margin:0 6px 0 0;vertical-align:-2px}
 .up .d{color:var(--tx2);min-width:76px}
 .login{max-width:360px;margin:16vh auto;text-align:center}
 .demo{background:#fff4d6;border:1px solid #f0d58a;color:#6b4e00;border-radius:8px;padding:8px 12px;font-size:12px;margin-bottom:12px}
+.pdgrid{display:grid;grid-template-columns:230px minmax(0,1fr);gap:12px;align-items:start}
+.side{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;position:sticky;top:12px}
+.side summary{display:none}
+.side input{font-size:13px;padding:6px 9px;margin-bottom:6px}
+.wi{border-radius:8px}
+.wi.open{background:#f4f6fb}
+.wrow{display:flex;align-items:center;gap:7px;padding:7px 6px;border-radius:8px;cursor:pointer;font-size:13px}
+.wrow:hover{background:#f6f6f3}
+.wrow .nm{flex:1;min-width:0}
+.wrow .nm div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wrow .sub{font-size:11px;color:var(--tx2)}
+.wrow.off .nm{color:var(--tx3)}
+.ck{width:16px;height:16px;border-radius:4px;border:1.5px solid var(--line2);flex:none;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;cursor:pointer}
+.ck.y{background:var(--acc);border-color:var(--acc)}
+.wdet{padding:2px 8px 10px 29px;font-size:12px;color:var(--tx2)}
+.wdet .bt{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+.wdet button{font-size:12px;padding:4px 8px}
+.agenda{display:none}
+.agenda .ad{font-size:12px;color:var(--tx2);margin:12px 0 4px;font-weight:600}
+.agenda .ev{white-space:normal;font-size:13px;padding:5px 8px;margin-top:3px}
+.ev .wn{font-weight:400}
+.ev .ls{display:none}
 @media(max-width:760px){
- .cal>div{min-height:76px;padding:2px}
- .ev,.more{font-size:11px;padding:1px 3px}
+ .wrap{padding:10px}
+ .top{gap:6px}
+ .top h1{width:100%;font-size:17px}
+ .top .sp{display:none}
+ .mon{min-width:auto;font-size:15px}
+ .pdgrid{grid-template-columns:1fr}
+ .side{position:static;padding:8px 10px}
+ .side summary{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;cursor:pointer;list-style:none;padding:2px 0}
+ .side summary::-webkit-details-marker{display:none}
+ .card{padding:6px}
+ .cal>div{min-height:58px;padding:2px}
+ .cal .hd{font-size:11px;padding:4px 0}
+ .dn{font-size:11px;min-width:18px;height:18px;line-height:18px}
+ .ev,.more{font-size:10px;padding:1px 2px;margin-top:1px;border-radius:3px}
+ .ev.hiatus{border-left-width:2px}
+ .ev .wn{display:none}
+ .cal .ev .lf{display:none}
+ .cal .ev .ls{display:inline}
  .grid2{grid-template-columns:1fr}
- .top h1{width:100%}
+ .agenda{display:block}
+ .ov{padding:8px}
+ .md{padding:16px;border-radius:12px}
+ .row{flex-wrap:wrap}
+ .row>*{min-width:120px}
+ .hint.pc{display:none}
 }
 </style>
 </head>
@@ -258,7 +301,7 @@ function entryMain(x){
 function entryHTML(x, withWork, k){
   const c = col(x.w.color);
   const tip = esc(x.w.name + " · " + entryLabel(x) + (x.kind === "ev" && x.e.memo ? "\n" + x.e.memo : ""));
-  const inner = withWork ? `<b style="font-weight:600">${esc(entryMain(x))}</b> ${esc(workShort(x.w))}` : esc(entryLabel(x));
+  const inner = withWork ? `<b style="font-weight:600">${esc(entryMain(x))}</b> <span class="wn">${esc(workShort(x.w))}</span>` : `<span class="lf">${esc(entryLabel(x))}</span><span class="ls">${esc(entryMain(x))}</span>`;
   if (x.kind === "serial") return `<span class="ev serial" style="background:${c.solid}" data-act="serial" data-t="${x.w.token}" title="${tip}">${inner}</span>`;
   const cls = (x.e.type === "hiatus" ? "ev hiatus" : "ev") + (superseded(x.w, x.e) ? " old" : "");
   const st = x.e.type === "hiatus" ? `border-left-color:${c.solid}` : `background:${c.bg};color:${c.fg}`;
@@ -303,18 +346,61 @@ function renderPD(){
     ${DEMO?`<div class="demo">미리보기 모드입니다. 저장되지 않으며, 파일 상단에 Firebase 설정을 넣으면 실제로 동작합니다.</div>`:""}
     <div class="top"><h1>작품 일정표</h1>${monthNav()}<span class="sp"></span>
       <button data-act="comments">코멘트${unread?`<span class="badge">${unread}</span>`:""}</button>
-      <button data-act="works">작품 관리</button>
       <button class="pri" data-act="add">+ 일정 추가</button></div>
-    <div class="chips">
-      <span class="chip all" data-act="allon">전체 ${works.length}</span>
-      ${works.map(w => { const c = col(w.color); return `<span class="chip ${S.hidden.has(w.token)?"off":""}" style="background:${c.bg};color:${c.fg}" data-act="chip" data-t="${w.token}" title="${esc(w.name)}">${esc(workShort(w))}</span>`; }).join("")}
-      ${works.length?`<span class="chip all" data-act="alloff">모두 끄기</span>`:""}
+    <div class="pdgrid">
+      <details class="side" id="side" ${S.sideOpen || window.innerWidth > 760 ? "open" : ""}>
+        <summary>작품 목록 <span class="muted">${works.length - works.filter(w => S.hidden.has(w.token)).length}/${works.length} 표시 중</span></summary>
+        <input id="side-q" placeholder="작품 검색" value="${esc(S.q || "")}">
+        <div id="side-list">${sideListHTML()}</div>
+        <button style="width:100%;margin-top:8px;font-size:13px" data-act="works">+ 작품 추가 · 관리</button>
+      </details>
+      <div style="min-width:0">
+        <div class="card">${works.length ? calendarHTML(visibleWorks(), true) : `<div style="padding:40px;text-align:center"><p>첫 작품을 등록해 주세요.</p><button class="pri" data-act="works">작품 등록</button></div>`}</div>
+        <div class="agenda">${agendaHTML(visibleWorks())}</div>
+        <p class="hint pc">날짜 칸을 누르면 그 날짜로 일정이 추가됩니다. 진한 색 일정은 연재일이며, 작품 설정에서 요일을 정하면 자동으로 표시됩니다.</p>
+      </div>
     </div>
-    <div class="card">${works.length ? calendarHTML(visibleWorks(), true) : `<div style="padding:40px;text-align:center"><p>첫 작품을 등록해 주세요.</p><button class="pri" data-act="works">작품 등록</button></div>`}</div>
-    <p class="hint">날짜 칸을 누르면 그 날짜로 일정이 추가됩니다. 진한 색 일정은 연재일이며, 작품 관리에서 요일을 설정하면 자동으로 표시됩니다.</p>
   </div>`;
 }
 
+function nextDeadline(w){
+  const td = ds(new Date());
+  const ev = (w.events || []).filter(e => e.date >= td && e.type !== "hiatus").sort((a,b) => a.date < b.date ? -1 : 1)[0];
+  if (!ev) return "";
+  const dd = dayDiff(td, ev.date);
+  return `다음 · ${esc(entryLabel({kind:"ev", w, e: ev}))} ${md(ev.date)} (${dd === 0 ? "오늘" : "D-" + dd})`;
+}
+function sideListHTML(){
+  const works = sortedWorks();
+  const q = (S.q || "").trim().toLowerCase();
+  const list = works.filter(w => !q || (w.name + " " + (w.short || "")).toLowerCase().includes(q));
+  const allOn = works.length && works.every(w => !S.hidden.has(w.token));
+  let h = `<div class="wrow" data-act="${allOn ? "alloff" : "allon"}"><span class="ck ${allOn ? "y" : ""}">${allOn ? "✓" : ""}</span><div class="nm"><div>전체 보기</div></div><span class="muted">${works.length}</span></div><div style="border-top:1px solid var(--line);margin:3px 0"></div>`;
+  h += list.map(w => {
+    const on = !S.hidden.has(w.token), open = S.open === w.token;
+    const unread = (S.comments[w.token] || []).filter(c => !c.seen).length;
+    const sub = [w.serial && w.serial.start ? serialText(w.serial).replace(/ \(.*\)$/, "") : "연재 설정 없음", w.pdWorkId ? "⇄ PD 매니저" : ""].filter(Boolean).join(" · ");
+    return `<div class="wi ${open ? "open" : ""}"><div class="wrow ${on ? "" : "off"}" data-act="wopen" data-t="${w.token}">
+      <span class="ck ${on ? "y" : ""}" data-act="chip" data-t="${w.token}">${on ? "✓" : ""}</span>
+      <span class="dot" style="background:${col(w.color).solid}"></span>
+      <div class="nm"><div title="${esc(w.name)}">${esc(w.name)}</div><div class="sub">${esc(on ? sub : "숨김")}</div></div>
+      ${unread ? `<span class="badge">${unread}</span>` : ""}</div>
+      ${open ? `<div class="wdet">${nextDeadline(w) || "예정된 일정 없음"}${unread ? `<br>안 읽은 코멘트 ${unread}건` : ""}
+        <div class="bt"><button data-act="only" data-t="${w.token}">이 작품만 보기</button><button data-act="copy" data-t="${w.token}">링크 복사</button><button data-act="work-edit" data-t="${w.token}">설정</button></div></div>` : ""}</div>`;
+  }).join("") || `<p class="muted" style="padding:6px">검색 결과가 없습니다.</p>`;
+  return h;
+}
+function agendaHTML(works){
+  const first = ds(new Date(S.y, S.m, 1)), last = ds(new Date(S.y, S.m + 1, 0));
+  const map = entriesFor(works, first, last);
+  const keys = Object.keys(map).sort();
+  if (!keys.length) return `<p class="muted" style="margin-top:12px">이달 일정이 없습니다.</p>`;
+  const td = ds(new Date()), from = (td >= first && td <= last) ? td : first;
+  const rows = keys.filter(k => k >= from).map(k => [k, map[k].filter(x => !x.cont)]).filter(([k, l]) => l.length);
+  if (!rows.length) return `<p class="muted" style="margin-top:12px">남은 이달 일정이 없습니다.</p>`;
+  return `<div class="ad" style="margin-top:14px">${from === td ? "오늘부터 이달 일정" : "이달 일정"}</div>` + rows.map(([k, l]) => { const d = pdate(k);
+    return `<div class="ad">${d.getMonth()+1}/${d.getDate()} (${WD[d.getDay()]})${k === td ? " · 오늘" : ""}</div>` + l.map(x => entryHTML(x, true, k).replace('<span class="wn">', '<span class="wn" style="display:inline">')).join(""); }).join("");
+}
 function openModal(html, wide){
   document.getElementById("modal").innerHTML = `<div class="ov" data-act="close-ov"><div class="md ${wide?"wide":""}">${html}</div></div>`;
 }
@@ -572,7 +658,9 @@ document.addEventListener("click", async ev => {
     case "login": try { await store.auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); } catch(e){ toast("로그인하지 못했습니다"); } break;
     case "add": eventModal(); break;
     case "add-on": eventModal(d); break;
-    case "day": if (S.mode === "pd") eventModal(d); break;
+    case "day": if (S.mode === "pd") { if (window.innerWidth <= 760) dayModal(d); else eventModal(d); } break;
+    case "wopen": S.open = S.open === t ? null : t; document.getElementById("side-list").innerHTML = sideListHTML(); break;
+    case "only": S.hidden = new Set(S.works.filter(w => w.token !== t).map(w => w.token)); ls.set("cal_hidden", [...S.hidden]); renderPD(); break;
     case "more": dayModal(d); break;
     case "ev": eventModal(null, t, id); break;
     case "serial": workEditModal(t); break;
@@ -623,6 +711,10 @@ document.addEventListener("drop", ev => {
 document.addEventListener("change", ev => {
   if (ev.target.matches(".wdays input")) ev.target.parentElement.classList.toggle("on", ev.target.checked);
 });
+document.addEventListener("input", ev => {
+  if (ev.target.id === "side-q"){ S.q = ev.target.value; document.getElementById("side-list").innerHTML = sideListHTML(); }
+});
+document.addEventListener("toggle", ev => { if (ev.target.id === "side") S.sideOpen = ev.target.open; }, true);
 document.addEventListener("keydown", ev => {
   if (ev.key === "Escape") closeModal();
   if (ev.key === "Enter" && ev.target.id === "f-newwork") addWork();
