@@ -101,7 +101,8 @@ const firebaseConfig = {
   appId: "1:173903637531:web:5687f6fbaa800537e7dcbe"
 };
 /* PD 구글 계정 이메일 (보안 규칙의 이메일과 같아야 합니다) */
-const PD_EMAILS = ["_yjs_@crackent.com"];
+const PD_DOMAIN = "@crackent.com";
+const isPDEmail = e => !!e && e.toLowerCase().endsWith(PD_DOMAIN);
 /* ===================================================================== */
 
 const DEMO = !firebaseConfig.apiKey || firebaseConfig.apiKey.startsWith("여기에");
@@ -275,7 +276,7 @@ const serialText = s => (s && s.start && s.days && s.days.length) ? `매주 ${s.
 function renderPD(){
   const M = document.getElementById("main");
   if (!S.user){
-    M.innerHTML = `<div class="login card"><h1 style="font-size:18px">작품 일정표</h1><p class="muted">PD 계정으로 로그인해 주세요.</p>${S.denied?`<p style="color:var(--red);font-size:13px">등록된 PD 계정이 아닙니다. (로그인한 계정: ${esc(S.deniedEmail||"")})</p>`:""}<button class="pri" data-act="login">구글 계정으로 로그인</button></div>`;
+    M.innerHTML = `<div class="login card"><h1 style="font-size:18px">작품 일정표</h1><p class="muted">PD 계정으로 로그인해 주세요.</p>${S.denied?`<p style="color:var(--red);font-size:13px">crackent.com 계정으로만 로그인할 수 있습니다. (로그인한 계정: ${esc(S.deniedEmail||"")})</p>`:""}<button class="pri" data-act="login">구글 계정으로 로그인</button></div>`;
     return;
   }
   const works = sortedWorks();
@@ -596,7 +597,7 @@ function startPD(){
   if (DEMO){ S.user = {email:"demo"}; begin(); return; }
   renderPD();
   store.auth.onAuthStateChanged(u => {
-    if (u && !PD_EMAILS.includes(u.email)){ S.denied = true; S.deniedEmail = u.email; store.auth.signOut(); return; }
+    if (u && !isPDEmail(u.email)){ S.denied = true; S.deniedEmail = u.email; store.auth.signOut(); return; }
     S.user = u;
     if (u && !unsubW) begin();
     renderPD();
