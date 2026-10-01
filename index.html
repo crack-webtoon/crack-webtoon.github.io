@@ -219,19 +219,25 @@ function entriesFor(works, from, to){
   for (const k in map) map[k].sort((a,b) => (TYPE_ORDER[a.kind==="serial"?"serial":a.e.type] - TYPE_ORDER[b.kind==="serial"?"serial":b.e.type]) || (ord.get(a.w.token) - ord.get(b.w.token)));
   return map;
 }
-function entryLabel(x, withWork){
-  const pre = withWork ? x.w.name + " " : "";
-  if (x.kind === "serial") return pre + x.ep + "화 연재";
+const SHORT = {conti:"콘티", manu:"원고", hiatus:"휴재", launch:"런칭", etc:"기타"};
+const workShort = w => (w.short && w.short.trim()) || w.name;
+function entryLabel(x){
+  if (x.kind === "serial") return x.ep + "화 연재";
   const t = TYPES[x.e.type] ? TYPES[x.e.type].label : "일정";
-  return pre + t + (x.e.title ? " · " + x.e.title : "");
+  return t + (x.e.title ? " · " + x.e.title : "");
+}
+function entryMain(x){
+  if (x.kind === "serial") return x.ep + "화";
+  return (SHORT[x.e.type] || "일정") + (x.e.title ? " " + x.e.title : "");
 }
 function entryHTML(x, withWork, k){
   const c = col(x.w.color);
-  const label = esc(entryLabel(x, withWork));
-  if (x.kind === "serial") return `<span class="ev serial" style="background:${c.solid}" data-act="serial" data-t="${x.w.token}" title="${label}">${label}</span>`;
+  const tip = esc(x.w.name + " · " + entryLabel(x) + (x.kind === "ev" && x.e.memo ? "\n" + x.e.memo : ""));
+  const inner = withWork ? `<b style="font-weight:600">${esc(entryMain(x))}</b> ${esc(workShort(x.w))}` : esc(entryLabel(x));
+  if (x.kind === "serial") return `<span class="ev serial" style="background:${c.solid}" data-act="serial" data-t="${x.w.token}" title="${tip}">${inner}</span>`;
   const cls = x.e.type === "hiatus" ? "ev hiatus" : "ev";
   const st = x.e.type === "hiatus" ? `border-left-color:${c.solid}` : `background:${c.bg};color:${c.fg}`;
-  return `<span class="${cls}" style="${st}" data-act="ev" data-t="${x.w.token}" data-id="${x.e.id}" title="${label}${x.e.memo ? "\n" + esc(x.e.memo) : ""}">${label}</span>`;
+  return `<span class="${cls}" style="${st}" data-act="ev" data-t="${x.w.token}" data-id="${x.e.id}" title="${tip}">${inner}</span>`;
 }
 function calendarHTML(works, isPD){
   const first = new Date(S.y, S.m, 1);
@@ -276,7 +282,7 @@ function renderPD(){
       <button class="pri" data-act="add">+ 일정 추가</button></div>
     <div class="chips">
       <span class="chip all" data-act="allon">전체 ${works.length}</span>
-      ${works.map(w => { const c = col(w.color); return `<span class="chip ${S.hidden.has(w.token)?"off":""}" style="background:${c.bg};color:${c.fg}" data-act="chip" data-t="${w.token}">${esc(w.name)}</span>`; }).join("")}
+      ${works.map(w => { const c = col(w.color); return `<span class="chip ${S.hidden.has(w.token)?"off":""}" style="background:${c.bg};color:${c.fg}" data-act="chip" data-t="${w.token}" title="${esc(w.name)}">${esc(workShort(w))}</span>`; }).join("")}
       ${works.length?`<span class="chip all" data-act="alloff">모두 끄기</span>`:""}
     </div>
     <div class="card">${works.length ? calendarHTML(visibleWorks(), true) : `<div style="padding:40px;text-align:center"><p>첫 작품을 등록해 주세요.</p><button class="pri" data-act="works">작품 등록</button></div>`}</div>
@@ -351,7 +357,8 @@ function workEditModal(t){
   const s = w.serial || {};
   const days = new Set(s.days || []);
   openModal(`<h2>작품 설정</h2>
-    <label>작품명</label><input id="f-name" value="${esc(w.name)}" maxlength="30">
+    <label>작품명</label><input id="f-name" value="${esc(w.name)}" maxlength="40">
+    <label>달력 표시용 약칭 (비워 두면 작품명 표시)</label><input id="f-short" value="${esc(w.short||"")}" maxlength="6" placeholder="최대 6자">
     <label>색상</label><div class="sw" id="f-color" data-v="${w.color}">${HUES.map((_,i) => `<span class="${i===w.color?"on":""}" style="background:${col(i).solid}" data-act="pick" data-i="${i}"></span>`).join("")}</div>
     <div style="border-top:1px solid var(--line);margin-top:16px;padding-top:4px"><label style="font-size:13px;color:var(--tx);font-weight:600">연재 일정</label>
     <div class="row"><div><label>연재 시작일</label><input type="date" id="f-sstart" value="${s.start||""}"></div><div><label>시작 회차</label><input type="number" id="f-sep" min="1" value="${s.ep||1}"></div></div>
@@ -369,6 +376,7 @@ async function saveWorkSettings(t){
   const v = id => document.getElementById(id).value.trim();
   const name = v("f-name"); if (!name) return toast("작품명을 입력해 주세요");
   w.name = name;
+  w.short = v("f-short");
   w.color = +document.getElementById("f-color").dataset.v;
   const days = [...document.querySelectorAll(".wdays input:checked")].map(x => +x.value);
   const start = v("f-sstart");
@@ -436,7 +444,7 @@ function renderAuthor(){
   const from = new Date(); const to = new Date(); to.setDate(to.getDate() + 45);
   const map = entriesFor([w], ds(from), ds(to));
   const rows = Object.keys(map).sort().flatMap(k => map[k].filter(x => !x.cont).map(x => ({k, x})));
-  document.getElementById("a-up").innerHTML = rows.slice(0, 15).map(({k,x}) => { const d = pdate(k); return `<div><span class="d">${d.getMonth()+1}/${d.getDate()} (${WD[d.getDay()]})</span><span>${esc(entryLabel(x,false))}${x.kind==="ev"&&x.e.end?` ~ ${x.e.end.slice(5).replace("-","/")}`:""}${x.kind==="ev"&&x.e.memo?`<div class="muted">${esc(x.e.memo)}</div>`:""}</span></div>`; }).join("") || `<p class="muted">45일 안에 예정된 일정이 없습니다.</p>`;
+  document.getElementById("a-up").innerHTML = rows.slice(0, 15).map(({k,x}) => { const d = pdate(k); return `<div><span class="d">${d.getMonth()+1}/${d.getDate()} (${WD[d.getDay()]})</span><span>${esc(entryLabel(x))}${x.kind==="ev"&&x.e.end?` ~ ${x.e.end.slice(5).replace("-","/")}`:""}${x.kind==="ev"&&x.e.memo?`<div class="muted">${esc(x.e.memo)}</div>`:""}</span></div>`; }).join("") || `<p class="muted">45일 안에 예정된 일정이 없습니다.</p>`;
   const cms = S.comments[w.token] || [];
   document.getElementById("a-cm").innerHTML = cms.length ? `<div style="margin-top:10px;border-top:1px solid var(--line)">${cms.map(c => `<div class="cm"><div class="meta">${esc(c.name||"")} · ${fmtTime(c.at)}</div><div class="tx">${esc(c.text)}</div></div>`).join("")}</div>` : "";
 }
